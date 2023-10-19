@@ -119,4 +119,4 @@ def predict(cfg):
 
 if __name__ == "__main__":
     reader = easyocr.Reader(['en'])
-    predict()
+    predict()Saving Number in result.txt
