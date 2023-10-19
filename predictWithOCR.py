@@ -51,6 +51,9 @@ class DetectionPredictor(BasePredictor):
         return preds
 
     def write_results(self, idx, preds, batch):
+        
+        result = open('result.txt', 'at')
+
         p, im, im0 = batch
         log_string = ""
         if len(im.shape) == 3:
@@ -90,9 +93,11 @@ class DetectionPredictor(BasePredictor):
                 label = None if self.args.hide_labels else (
                     self.model.names[c] if self.args.hide_conf else f'{self.model.names[c]} {conf:.2f}')
                 ocr = getOCR(im0,xyxy)
-                print("OCR: ",ocr) 
+                
                 if ocr != "":
                     label = ocr
+                    result.write(label)
+                    result.write('\n')
                 self.annotator.box_label(xyxy, label, color=colors(c, True))
             if self.args.save_crop:
                 imc = im0.copy()
@@ -100,7 +105,6 @@ class DetectionPredictor(BasePredictor):
                              imc,
                              file=self.save_dir / 'crops' / self.model.model.names[c] / f'{self.data_path.stem}.jpg',
                              BGR=True)
-
         return log_string
 
 
