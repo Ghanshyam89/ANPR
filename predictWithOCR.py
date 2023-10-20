@@ -8,7 +8,12 @@ from ultralytics.yolo.engine.predictor import BasePredictor
 from ultralytics.yolo.utils import DEFAULT_CONFIG, ROOT, ops
 from ultralytics.yolo.utils.checks import check_imgsz
 from ultralytics.yolo.utils.plotting import Annotator, colors, save_one_box
+import re
+import pymongo
+import argparse
 
+
+labelset = set()
 def getOCR(im, coors):
     x,y,w, h = int(coors[0]), int(coors[1]), int(coors[2]),int(coors[3])
     im = im[y:h,x:w]
@@ -23,8 +28,20 @@ def getOCR(im, coors):
             ocr = result[1]
         if len(results) >1 and len(results[1])>6 and results[2]> conf:
             ocr = result[1]
-    
     return str(ocr)
+    
+indian_state_codes = ["AP", "AR", "AS", "BR", "CG", "GA", "GJ", "HR", "HP", "JH", "KA", "KL", "MP", "MH", "MN", "ML", "MZ", "NL", "OD", "PB", "RJ", "SK", "TN", "TS", "TR", "UP", "UK", "WB", "AN", "CH", "DD", "LD", "DL", "PY", "LA", "JK"]
+
+def validate_number(number: str) -> bool:
+  vehicle_number = number.strip()
+  
+  print(len(vehicle_number))
+  if len(vehicle_number) <= 10 and len(vehicle_number) > 7 and re.match("^[a-zA-Z0-9 -]+$", vehicle_number) and vehicle_number[0:2].upper() in indian_state_codes:
+    print(vehicle_number)
+    return True
+  else:
+    print("Returing from outside if")
+    return False
 
 class DetectionPredictor(BasePredictor):
 
@@ -52,7 +69,7 @@ class DetectionPredictor(BasePredictor):
 
     def write_results(self, idx, preds, batch):
         
-        result = open('result.txt', 'at')
+        # result = open('result.txt', 'at')
 
         p, im, im0 = batch
         log_string = ""
@@ -93,11 +110,13 @@ class DetectionPredictor(BasePredictor):
                 label = None if self.args.hide_labels else (
                     self.model.names[c] if self.args.hide_conf else f'{self.model.names[c]} {conf:.2f}')
                 ocr = getOCR(im0,xyxy)
-                
-                if ocr != "":
+
+                if ocr != "" and validate_number(ocr):
                     label = ocr
-                    result.write(label)
-                    result.write('\n')
+                    labelset.add(label)
+                    # labelset.write('\n')
+                else:
+                    print("Invalid OCR")
                 self.annotator.box_label(xyxy, label, color=colors(c, True))
             if self.args.save_crop:
                 imc = im0.copy()
@@ -107,7 +126,7 @@ class DetectionPredictor(BasePredictor):
                              BGR=True)
         return log_string
 
-
+connection_string = 'mongodb+srv://ghanshyampraja8959:root@ghanshyam.jwpgb3c.mongodb.net/'
 @hydra.main(version_base=None, config_path=str(DEFAULT_CONFIG.parent), config_name=DEFAULT_CONFIG.name)
 def predict(cfg):
     cfg.model = cfg.model or "yolov8n.pt"
@@ -115,6 +134,38 @@ def predict(cfg):
     cfg.source = cfg.source if cfg.source is not None else ROOT / "assets"
     predictor = DetectionPredictor(cfg)
     predictor()
+    
+    # result = open("result.txt", "at")
+    # for label in labelset:
+    #   result.write(label+'\n')
+    # result.close()
+
+    parser = argparse.ArgumentParser(description='Your script description')
+    parser.add_argument('source', type=str, help='Path to the source file')
+
+    args = parser.parse_args()
+
+    source_path = args.source
+
+    print(source_path)
+# You can then use model_path and source_path in your script.
+
+
+    # Storing in mongoDB
+    # try:
+    #   client = pymongo.MongoClient(connection_string)
+    #   # Access your database
+    #   db = client["ANPR"]
+    #   collection = db['licenseplate']
+
+    #   for label in labelset:
+    #     collection.insert_one({"numberplate": label})
+    
+    # except pymongo.errors.ConnectionFailure as e:
+    #   print(f"Connection to MongoDB Atlas failed: {e}")
+
+    # finally:
+    #     client.close()
 
 
 if __name__ == "__main__":
