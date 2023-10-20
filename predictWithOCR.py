@@ -11,7 +11,7 @@ from ultralytics.yolo.utils.plotting import Annotator, colors, save_one_box
 import re
 import pymongo
 import argparse
-
+import os
 
 labelset = set()
 def getOCR(im, coors):
@@ -35,12 +35,9 @@ indian_state_codes = ["AP", "AR", "AS", "BR", "CG", "GA", "GJ", "HR", "HP", "JH"
 def validate_number(number: str) -> bool:
   vehicle_number = number.strip()
   
-  print(len(vehicle_number))
   if len(vehicle_number) <= 10 and len(vehicle_number) > 7 and re.match("^[a-zA-Z0-9 -]+$", vehicle_number) and vehicle_number[0:2].upper() in indian_state_codes:
-    print(vehicle_number)
     return True
   else:
-    print("Returing from outside if")
     return False
 
 class DetectionPredictor(BasePredictor):
@@ -69,7 +66,6 @@ class DetectionPredictor(BasePredictor):
 
     def write_results(self, idx, preds, batch):
         
-        # result = open('result.txt', 'at')
 
         p, im, im0 = batch
         log_string = ""
@@ -114,9 +110,6 @@ class DetectionPredictor(BasePredictor):
                 if ocr != "" and validate_number(ocr):
                     label = ocr
                     labelset.add(label)
-                    # labelset.write('\n')
-                else:
-                    print("Invalid OCR")
                 self.annotator.box_label(xyxy, label, color=colors(c, True))
             if self.args.save_crop:
                 imc = im0.copy()
@@ -135,37 +128,30 @@ def predict(cfg):
     predictor = DetectionPredictor(cfg)
     predictor()
     
-    # result = open("result.txt", "at")
-    # for label in labelset:
-    #   result.write(label+'\n')
-    # result.close()
 
     parser = argparse.ArgumentParser(description='Your script description')
+    parser.add_argument('model', type=str, help='Path to the model file')
     parser.add_argument('source', type=str, help='Path to the source file')
 
     args = parser.parse_args()
 
-    source_path = args.source
-
-    print(source_path)
-# You can then use model_path and source_path in your script.
-
+    video_name = os.path.basename(args.source).split('.')[0]
 
     # Storing in mongoDB
-    # try:
-    #   client = pymongo.MongoClient(connection_string)
-    #   # Access your database
-    #   db = client["ANPR"]
-    #   collection = db['licenseplate']
+    try:
+      client = pymongo.MongoClient(connection_string)
+      # Access your database
+      db = client["ANPR"]
+      collection = db[video_name]
 
-    #   for label in labelset:
-    #     collection.insert_one({"numberplate": label})
-    
-    # except pymongo.errors.ConnectionFailure as e:
-    #   print(f"Connection to MongoDB Atlas failed: {e}")
+      for label in labelset:
+        collection.insert_one({"numberplate": label})
+      print("Successfully Inserted into MongoDB!")
+    except pymongo.errors.ConnectionFailure as e:
+      print(f"Connection to MongoDB Atlas failed: {e}")
 
-    # finally:
-    #     client.close()
+    finally:
+      client.close()
 
 
 if __name__ == "__main__":
